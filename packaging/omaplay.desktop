@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=OmaMedia-Player
+GenericName=Media Player
+Comment=Play video and music on a CRT television
+Exec=omaplay %f
+Icon=omaplay
+Terminal=false
+Categories=AudioVideo;Video;Player;TV;
+MimeType=video/mp4;video/x-matroska;video/x-msvideo;video/quicktime;video/webm;video/mpeg;audio/mpeg;audio/flac;
+Keywords=video;movie;media;player;crt;tv;
+StartupNotify=false

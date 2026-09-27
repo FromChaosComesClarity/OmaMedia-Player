@@ -1,0 +1,14 @@
+#!/bin/sh
+# OmaMedia-Player AppImage entry point.
+#
+# Bundled libraries take precedence, which is the whole point of the AppImage:
+# mpv and its whole codec stack travel with the app, so a machine that has
+# never heard of mpv still plays everything. What is NOT bundled is just as
+# deliberate -- see
+# packaging/build-appimage.sh for the exclusion list and why each entry is on it.
+HERE=$(dirname "$(readlink -f "$0")")
+export APPDIR="${APPDIR:-$HERE}"
+export LD_LIBRARY_PATH="$APPDIR/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export OMAPLAY_ROOT="$APPDIR/usr/share/omaplay"
+export OMAPLAY_MPV="$APPDIR/usr/bin/mpv"
+exec "$APPDIR/usr/bin/omaplay" "$@"

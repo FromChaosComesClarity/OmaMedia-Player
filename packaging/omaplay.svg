@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- A screen with a play mark. Strokes are fat on purpose: this also gets
+       drawn on the tube, where a hairline strobes at 30Hz. -->
+  <rect width="256" height="256" rx="28" fill="#0E0E0E"/>
+  <rect x="34" y="56" width="188" height="132" rx="12" fill="none"
+        stroke="#F0C060" stroke-width="12"/>
+  <path d="M108 96 L108 148 L154 122 Z" fill="#EDEAE2"/>
+  <rect x="86" y="206" width="84" height="12" rx="6" fill="#9A968C"/>
+  <rect x="112" y="188" width="32" height="20" fill="#9A968C"/>
+</svg>

@@ -1,0 +1,111 @@
+#!/usr/bin/env bash
+# =============================================================================
+# OmaMedia-Player — launcher.
+#
+# Starts mpv with OmaMedia's CRT profile and interface. Everything the viewer
+# sees comes from src/lua/omaplay.lua; this script's job is to find its own
+# assets and hand that script either a file to play or a folder to open in.
+#
+# Runs from the source tree, from an AppImage, or from a local install, and
+# finds its assets in each.
+# =============================================================================
+set -uo pipefail
+
+APP_NAME="OmaMedia-Player"
+APP_ID="omaplay"
+
+die()  { printf '%s: %s\n' "$APP_ID" "$*" >&2; exit 1; }
+note() { [ -n "${OMAPLAY_QUIET:-}" ] || printf '%s: %s\n' "$APP_ID" "$*" >&2; }
+
+self=$(readlink -f "${BASH_SOURCE[0]}")
+here=$(dirname "$self")
+root=""
+for cand in "${OMAPLAY_ROOT:-}" "${APPDIR:-}/usr/share/$APP_ID" \
+            "$here/../share/$APP_ID" "$here"; do
+  [ -n "$cand" ] || continue
+  if [ -f "$cand/lua/omaplay.lua" ] && [ -f "$cand/conf/mpv.conf" ]; then
+    root=$cand; break
+  fi
+done
+[ -n "$root" ] || die "cannot find my lua/ and conf/ assets (set OMAPLAY_ROOT)"
+
+MPV="${OMAPLAY_MPV:-}"
+if [ -z "$MPV" ]; then
+  if [ -n "${APPDIR:-}" ] && [ -x "$APPDIR/usr/bin/mpv" ]; then
+    MPV="$APPDIR/usr/bin/mpv"
+  else
+    MPV=$(command -v mpv) || die "mpv not found on PATH"
+  fi
+fi
+
+alang="${OMAPLAY_ALANG:-}"
+slang="${OMAPLAY_SLANG:-}"
+target=""
+extra=()
+
+usage() {
+  cat <<USAGE
+$APP_NAME — a media player for a CRT at 720x480 / 480i.
+
+Usage: $APP_ID [options] [FILE|DIRECTORY] [-- mpv-args...]
+
+With a FILE it plays it. With a DIRECTORY it opens the browser there. With
+neither it opens on the list of places to browse: the disc in the drive, any
+USB volume that is mounted, and your own folders.
+
+Options:
+  -a, --alang CODE    Preferred audio language (en, pt, es ...).
+  -s, --slang CODE    Preferred subtitle language.
+  -h, --help          This text.
+
+Environment: OMAPLAY_ALANG, OMAPLAY_SLANG, OMAPLAY_MPV, OMAPLAY_ROOT,
+             OMAPLAY_QUIET
+
+A Video DVD is handed to OmaDVD-Player, which exists to do that one job
+properly. Its VOB files remain browsable here either way.
+USAGE
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -a|--alang) alang=${2:?}; shift 2 ;;
+    -s|--slang) slang=${2:?}; shift 2 ;;
+    -h|--help)  usage; exit 0 ;;
+    --)         shift; extra=("$@"); break ;;
+    -*)         die "unknown option: $1 (try --help)" ;;
+    *)          target=$1; shift ;;
+  esac
+done
+
+opts="omaplay-home=$HOME"
+file_arg=()
+
+if [ -n "$target" ]; then
+  target=$(readlink -f "$target") || die "no such path: $target"
+  if [ -d "$target" ]; then
+    opts="${opts},omaplay-start_path=${target}"
+    note "browsing $target"
+  elif [ -f "$target" ]; then
+    file_arg=("$target")
+    note "playing $(basename "$target")"
+  else
+    die "not a file or directory: $target"
+  fi
+fi
+
+# --no-config is deliberate: the player must behave identically on any machine,
+# never inheriting a ~/.config/mpv tuned for a desktop monitor.
+args=(
+  --no-config
+  --include="$root/conf/mpv.conf"
+  --input-conf="$root/conf/input.conf"
+  --script="$root/lua/omaplay.lua"
+  --script-opts="$opts"
+  --title="$APP_NAME"
+  --wayland-app-id="$APP_ID"
+  --wayland-content-type=video
+)
+[ -n "$alang" ] && args+=(--alang="$alang")
+[ -n "$slang" ] && args+=(--slang="$slang")
+
+exec "$MPV" "${args[@]}" "${extra[@]}" "${file_arg[@]}"
