@@ -603,7 +603,11 @@ end
 local function close_menu()
   ui.stack = {}
   ui.mode = "hidden"
-  wipe()
+  -- ⚠️ render(), not wipe(). render() publishes the UI state to user-data
+  -- before it decides there is nothing to draw; calling wipe() directly clears
+  -- the screen but leaves the published state describing a menu that is no
+  -- longer open -- which is invisible until something reads it.
+  render()
 end
 
 play_file = function(path)
@@ -784,27 +788,32 @@ back = function()
   if mp.get_property("idle-active") ~= "yes" and playing_path then close_menu() end
 end
 
-local function bind(key, name, fn, rep)
-  mp.add_forced_key_binding(key, "omaplay-" .. name, function()
-    ui.last_input = mp.get_time()
-    if wake() then return end
-    fn()
-  end, rep and { repeatable = true } or nil)
+-- One handler, many keys. Naming a keyboard key and its gamepad equivalent in
+-- the same call is what stops the two drifting apart as bindings change.
+local function bind(keys, name, fn, rep)
+  if type(keys) == "string" then keys = { keys } end
+  for i, key in ipairs(keys) do
+    mp.add_forced_key_binding(key, "omaplay-" .. name .. "-" .. i, function()
+      ui.last_input = mp.get_time()
+      if wake() then return end
+      fn()
+    end, rep and { repeatable = true } or nil)
+  end
 end
 
-bind("UP", "up", function()
+bind({ "UP", "GAMEPAD_DPAD_UP", "GAMEPAD_LEFT_STICK_UP" }, "up", function()
   if ui.mode == "menu" then move(-1) else mp.commandv("add", "chapter", 1); flash_osd() end
 end, true)
 
-bind("DOWN", "down", function()
+bind({ "DOWN", "GAMEPAD_DPAD_DOWN", "GAMEPAD_LEFT_STICK_DOWN" }, "down", function()
   if ui.mode == "menu" then move(1) else mp.commandv("add", "chapter", -1); flash_osd() end
 end, true)
 
-bind("LEFT", "left", function()
+bind({ "LEFT", "GAMEPAD_DPAD_LEFT", "GAMEPAD_LEFT_STICK_LEFT" }, "left", function()
   if ui.mode == "menu" then back() else mp.commandv("seek", "-10"); flash_osd() end
 end, true)
 
-bind("RIGHT", "right", function()
+bind({ "RIGHT", "GAMEPAD_DPAD_RIGHT", "GAMEPAD_LEFT_STICK_RIGHT" }, "right", function()
   if ui.mode == "menu" then activate() else mp.commandv("seek", "10"); flash_osd() end
 end, true)
 
@@ -814,21 +823,21 @@ local function menu_key()
   else open_menu("playing") end
 end
 
-bind("ENTER", "select", menu_key)
+bind({ "ENTER", "GAMEPAD_ACTION_DOWN" }, "select", menu_key)
 bind("KP_ENTER", "select2", menu_key)
 
-bind("ESC", "back", function()
+bind({ "ESC", "GAMEPAD_ACTION_RIGHT", "GAMEPAD_BACK" }, "back", function()
   if ui.mode == "menu" then back()
   elseif mp.get_property("idle-active") ~= "yes" then open_menu("playing") end
 end)
 bind("BS", "back2", function() if ui.mode == "menu" then back() else flash_osd() end end)
 
-bind("SPACE", "playpause", function()
+bind({ "SPACE", "GAMEPAD_ACTION_LEFT" }, "playpause", function()
   if ui.mode == "menu" then activate() return end
   mp.commandv("cycle", "pause"); flash_osd()
 end)
 
-bind("m", "menu", function()
+bind({ "m", "GAMEPAD_START", "GAMEPAD_MENU" }, "menu", function()
   if ui.mode == "menu" then
     if ui.stack[#ui.stack] == "playing" then close_menu() else back() end
   else menu_key() end
@@ -839,6 +848,23 @@ bind("a", "audio", function() mp.commandv("cycle", "audio"); flash_osd() end)
 bind("j", "sub", function() mp.commandv("cycle", "sub"); flash_osd() end)
 bind("d", "deint", function() cycle_deint(); flash_osd() end)
 bind("q", "quit", function() mp.command("quit") end)
+
+
+-- Transport straight off the pad, with no menu in the way: shoulders step
+-- through chapters, triggers scrub. The letter keys are the same actions for
+-- anyone holding a keyboard instead.
+bind({ "GAMEPAD_LEFT_SHOULDER", "p" }, "prevchapter", function()
+  mp.commandv("add", "chapter", -1); flash_osd()
+end, true)
+bind({ "GAMEPAD_RIGHT_SHOULDER", "n" }, "nextchapter", function()
+  mp.commandv("add", "chapter", 1); flash_osd()
+end, true)
+bind({ "GAMEPAD_LEFT_TRIGGER" }, "rewind", function()
+  mp.commandv("seek", "-60"); flash_osd()
+end, true)
+bind({ "GAMEPAD_RIGHT_TRIGGER" }, "forward", function()
+  mp.commandv("seek", "60"); flash_osd()
+end, true)
 
 -- ---------------------------------------------------------------------------
 -- Burn-in watchdog
